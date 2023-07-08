@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
 
 #ifdef NO_ASM_USAGE
 // taken from https://graphics.stanford.edu/~seander/bithacks.html#IntegerLogLookup
@@ -28,7 +29,7 @@ static const char log2lut[UCHAR_MAX + 1] =
 #else
 #error "Please pass -D NO_ASM_USAGE"
 #endif
-#define GET_LOG_TWO(DST, SRC) do { asm volatile (ASM_COUNT_TZ : "=r" (DST) : "r" (SRC & 0xfe)); } while (0)
+#define GET_LOG_TWO(DST, SRC) do { uint64_t dst = 0, src = SRC & 0xfe; asm volatile (ASM_COUNT_TZ : "=g" (dst) : "g" (src)); DST = dst; } while (0)
 #define ZERO_OUT_MEMORY(DST, LEN) do { uintptr_t ptr = (uintptr_t)DST; size_t len = LEN; asm volatile (ASM_MEM_ZERO : : ASM_ZERO_MEM_INPUT(ptr, len) : CLOBBER_MEM_ZERO ); } while (0)
 #endif
 
@@ -52,22 +53,22 @@ typedef struct {
 
 typedef struct {
 	fnmattrs_t nmattrs;
-	filename_t nmrepr;
 	nameptr_t nmptr;
-} filenm_t;
+} fnmdesc_t;
 
 
-/*
-static inline void init_filenm(filename_t repr, filenm_t *filenm) {
-	memset(filenm, 0, sizeof(filenm_t));
-	filenm->nmptr = &
-	filenm->length = strlen(&filenm->filenm[0]);
-	GET_LOG_TWO(filenm->lenclass, filenm->length);
-	GET_FIRST_PERIOD(filenm->extbegin, filenm->filenm, filenm->length);
+
+static inline void init_fnmdesc(filename_t repr, fnmdesc_t *filenm) {
+	ZERO_OUT_MEMORY(filenm, sizeof(fnmdesc_t));
+	filenm->nmptr = &repr[0];
+	filenm->nmattrs.length = strlen(&filenm->nmptr[0]);
+	GET_LOG_TWO(filenm->nmattrs.lclass, filenm->nmattrs.length);
+	GET_FIRST_PERIOD(filenm->nmattrs.extpos, filenm->nmptr, filenm->nmattrs.length);
 }
-*/
+
 
 int main(int argc, char **argv) {
-	char b[] = "1131224";
-	ZERO_OUT_MEMORY(&b[0], 8);
+	fnmdesc_t fnmdesc;
+	filename_t repr = "aaa.b";
+	init_fnmdesc(repr, &fnmdesc);
 }
