@@ -23,7 +23,7 @@ static const char log2lut[256] =
 
 #define OR_SHR(VAL, SHRN) VAL |= VAL >> SHRN
 #define NEAREST_SQUARE(VAL) do { VAL--; OR_SHR(VAL, 1); OR_SHR(VAL, 2); OR_SHR(VAL, 4); OR_SHR(VAL, 8); OR_SHR(VAL, 16); OR_SHR(VAL, 32); VAL++;  } while (0)
-#define GET_FIRST_PERIOD(DST, SRC) do { register char *cpy; for (cpy = &SRC[0]; *cpy && *cpy != '.'; cpy++); DST = (int)(cpy - SRC) + 1;  } while (0)
+#define GET_FIRST_PERIOD(DST, SRC, LEN) do { register char *cpy; for (cpy = &SRC[0]; *cpy && *(cpy - 1) != '.'; ++cpy); DST = (int)(cpy - SRC) == LEN ? -1 : (int)(cpy - SRC); } while (0)
 
 typedef char filename_t[NAME_MAX];
 typedef char pathname_t[PATH_MAX];
@@ -43,10 +43,10 @@ typedef struct {
 static inline void init_filenm(filenm_t *fname) {
 	fname->length = strlen(&fname->fname[0]);
 	GET_LOG_TWO(fname->lenclass, fname->length);
-	GET_FIRST_PERIOD(fname->extbegin, fname->fname);
+	GET_FIRST_PERIOD(fname->extbegin, fname->fname, fname->length);
 }
 
 int main(int argc, char **argv) {
-	filenm_t fname = (filenm_t) { .fname = "ab.cd" };
+	filenm_t fname = (filenm_t) { .fname = ".abcd1aaa" };
 	init_filenm(&fname);
 }
