@@ -1,8 +1,16 @@
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdINT32.h>
+#include <stdint.h>
 #include <string.h>
+
+#define MK2X(M) M, M
+#define MK4X(M) MK2X(M), MK2X(M)
+#define MK6X(M) MK4X(M), MK2X(M)
+#define MK8X(M) MK4X(M), MK4X(M)
+#define MK16X(M) MK8X(M), MK8X(M)
+#define MK32X(M) MK16X(M), MK16X(M)
+#define MK60X(M) MK32X(M), MK16X(M), MK8X(M), MK4X(M)
 
 #ifdef NO_ASM_USAGE
 // taken from https://graphics.stanford.edu/~seander/bithacks.html#IntegerLogLookup
@@ -39,31 +47,35 @@ static const BYTE log2lut[UCHAR_MAX + 1] =
 
 #define DEFAULT_RETURN return TRUE
 
-#define INLINE static inline
+#define INLINE_LOCAL static inline
+#define STORE_REENTRANT static
+#define REENTRANT_NOCHANGE static const
+#define EXTERNAL_LINKAGE extern
+#define EXTERNAL_INLINE extern inline
+#define NOARGS void
 
-typedef BYTE arri8FileName[NAME_MAX];
-typedef BYTE arri8PathName[PATH_MAX];
-typedef BYTE *ptri8NameStr;
+
+typedef BYTE arru8FileName[NAME_MAX];
+typedef BYTE arru8PathName[PATH_MAX];
+typedef BYTE *ptru8NameStr;
 typedef INT32 primi32NameBucket;
 typedef INT32 primi32NameLen;
 typedef INT32 primi32PosHint;
 typedef BOOL boolYield;
 
 typedef struct {
-	UINT32 length : 9;
-	UINT32 extpos : 8;
-	UINT32 lclass : 4;
-	UINT32 		: 11;
+	UINT16 length;
+	UINT8 extpos;
+	UINT8 lclass;
 } bftFileNameAttrs, *bfpFileNameAttrs;
 
 typedef struct {
 	bftFileNameAttrs nmattrs;
-	ptri8NameStr nmptr;
+	ptru8NameStr nmptr;
 } mstFileNameDesc, *mspFileNameDesc;
 
 
-
-INLINE boolYield fniInitFileNameDesc(arri8FileName repr, mspFileNameDesc filenm) {
+INLINE_LOCAL boolYield fniInitFileNameDesc(arru8FileName repr, mspFileNameDesc filenm) {
 	ZERO_OUT_MEMORY(filenm, sizeof(mstFileNameDesc));
 	filenm->nmptr = &repr[0];
 	filenm->nmattrs.length = strlen(&filenm->nmptr[0]);
@@ -72,4 +84,37 @@ INLINE boolYield fniInitFileNameDesc(arri8FileName repr, mspFileNameDesc filenm)
 	DEFAULT_RETURN:
 }
 
-static 
+#define MAX_REGEX_LEN 64
+#define ZERO_OR_MORE_SYMBOL '*'
+#define ATLEAST_ONE_SYMBOL '+'
+#define ONE_OR_ZERO_SYMBOL '?'
+#define EITHER_OR_SYMBOL '|'
+#define SENTINEL_SYMBOL 0
+
+typedef BYTE primu8Symbol, *ptru8Symbol, arru8RegexExpr[MAX_REGEX_LEN], *ptru8RegexExpr;
+
+typedef enum {
+	KleeneStarUnary = 2,
+	AtLeastOneUnary = 4,
+	OneOrZeroUnary = 8,
+	EitherOrBinary = 16,
+	NotAnOperator = 0,
+} enumRegexOperator;
+
+typedef struct {
+	UINT32 symbol_b : 8;
+	UINT32 symbol_a : 8;
+	UINT32 operator : 16;
+} bftPartialNFA, *bfpPartialNFA;
+
+INLINE_LOCAL fniInitPartialNFA(bfpPartialNFA fragment, ptru8RegexExpr exprptr) {
+	REENTRANT_NOCHANGE WORD hmapOperatorsMap[UCHAR_MAX] = {
+		MK32X(SENTINEL_SYMBOL), MK8X(SENTINEL_SYMBOL), MK2X(SENTINEL_SYMBOL),
+		ZERO_OR_MORE_SYMBOL, ATLEAST_ONE_SYMBOL, MK16X(SENTINEL_SYMBOL),
+		MK2X(SENTINEL_SYMBOL), SENTINEL_SYMBOL, ONE_OR_ZERO_SYMBOL, MK60X(SENTINEL_SYMBOL),
+		EITHER_OR_SYMBOL, MK6X(SENTINEL_SYMBOL),
+	};
+	fragment->symbol_a = *exprptr;
+	fragment->symbol_b = *(exprptr + 2)
+	fragment->operator = hmapOperatorsMap[*(exprptr + 1)];
+}
