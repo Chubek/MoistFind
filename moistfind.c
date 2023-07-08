@@ -30,6 +30,7 @@ REENTRANT_NOCHANGE BYTE log2lut[UCHAR_MAX + 1] = {
 };
 #define GET_LOG_TWO(DST, SRC) do { UINT32 v = SRC & 0xfe; unsigned r; register UINT32 t, tt; if (tt = v >> 16) {  r = (t = tt >> 8) ? 24 + log2lut[t] : 16 + log2lut[tt]; } else {  r = (t = v >> 8) ? 8 + log2lut[t] : log2lut[v]; }; DST = r; } while (0)
 #define ZERO_OUT_MEMORY(DST, LEN) memset(DST, 0, LEN)
+#define COPY_MEMORY(DST, SRC, LEN) memmove(DST, SRC, LEN)
 #define OR_SHR(VAL, SHRN) VAL |= VAL >> SHRN
 #define NEAREST_SQUARE(VAL) do { VAL--; OR_SHR(VAL, 1); OR_SHR(VAL, 2); OR_SHR(VAL, 4); OR_SHR(VAL, 8); OR_SHR(VAL, 16); OR_SHR(VAL, 32); VAL++;  } while (0)
 #define GET_FIRST_PERIOD(DST, SRC, LEN) do { register BYTE *cpy; for (cpy = &SRC[0]; *cpy && *(cpy - 1) != '.'; ++cpy); DST = (INT32)(cpy - SRC) == LEN ? -1 : (INT32)(cpy - SRC); } while (0)
@@ -55,12 +56,12 @@ typedef struct {
 } mstFileNameDesc, *mspFileNameDesc;
 
 
-INLINE_LOCAL boolYield fniInitFileNameDesc(arru8FileName repr, mspFileNameDesc filenm) {
-	ZERO_OUT_MEMORY(filenm, sizeof(mstFileNameDesc));
-	filenm->nmptr = &repr[0];
-	filenm->nmattrs.length = strlen(&filenm->nmptr[0]);
-	GET_LOG_TWO(filenm->nmattrs.lclass, filenm->nmattrs.length);
-	GET_FIRST_PERIOD(filenm->nmattrs.extpos, filenm->nmptr, filenm->nmattrs.length);
+INLINE_LOCAL boolYield fniInitFileNameDesc(arru8FileName sstr_fnmrepr, mspFileNameDesc mem_fnmdesc) {
+	ZERO_OUT_MEMORY(mem_fnmdesc, sizeof(mstFileNameDesc));
+	mem_fnmdesc->nmptr = &sstr_fnmrepr[0];
+	mem_fnmdesc->nmattrs.length = strlen(&mem_fnmdesc->nmptr[0]);
+	GET_LOG_TWO(mem_fnmdesc->nmattrs.lclass, mem_fnmdesc->nmattrs.length);
+	GET_FIRST_PERIOD(mem_fnmdesc->nmattrs.extpos, mem_fnmdesc->nmptr, mem_fnmdesc->nmattrs.length);
 	DEFAULT_RETURN:
 }
 
@@ -72,14 +73,15 @@ INLINE_LOCAL boolYield fniInitFileNameDesc(arru8FileName repr, mspFileNameDesc f
 #define SENTINEL_SYMBOL 0
 
 typedef BYTE primu8Symbol, *ptru8Symbol, arru8RegexExpr[MAX_REGEX_LEN], *ptru8RegexExpr;
+typedef UINT32 primu32BitMapFragment, *ptru32BitMapFragment;
 
 typedef struct {
-	UINT32 symbol_b : 8;
-	UINT32 symbol_a : 8;
-	UINT32 operator : 16;
+	primu32BitMapFragment symbol_b : 8;
+	primu32BitMapFragment symbol_a : 8;
+	primu32BitMapFragment operator : 16;
 } bftPartialNFA, *bfpPartialNFA;
 
-INLINE_LOCAL fniInitPartialNFA(bfpPartialNFA fragment, ptru8RegexExpr exprat) {
+INLINE_LOCAL primu32BitMapFragment fniInitPartialNFA(bfpPartialNFA bmap_fragment, ptru8RegexExpr pstr_exprpos) {
 	REENTRANT_NOCHANGE WORD arri32sOperatorsMap[UCHAR_MAX] = {
 		MK32X(SENTINEL_SYMBOL), 
 		MK8X(SENTINEL_SYMBOL), 
@@ -94,7 +96,11 @@ INLINE_LOCAL fniInitPartialNFA(bfpPartialNFA fragment, ptru8RegexExpr exprat) {
 		EITHER_OR_SYMBOL, 
 		MK6X(SENTINEL_SYMBOL),
 	};
-	fragment->symbol_a = *exprat;
-	fragment->symbol_b = *(exprat + 2)
-	fragment->operator = arri32sOperatorsMap[*(exprat + 1)];
+	bmap_fragment->symbol_a = *pstr_exprpos;
+	bmap_fragment->symbol_b = *(pstr_exprpos + 2)
+	bmap_fragment->operator = arri32sOperatorsMap[*(pstr_exprpos + 1)];
+	ptru32BitMapFragment uptr_retval;
+	COPY_MEMORY(uptr_retval, bmap_fragment, sizeof(*uptr_retval));
+	return *uptr_retval;
 }
+
