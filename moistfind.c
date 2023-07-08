@@ -66,11 +66,11 @@ INLINE_LOCAL boolYield fniInitFileNameDesc(arru8FileName sstr_fnmrepr, mspFileNa
 }
 
 #define MAX_REGEX_LEN 64
-#define ZERO_OR_MORE_SYMBOL '*'
-#define ATLEAST_ONE_SYMBOL '+'
-#define ONE_OR_ZERO_SYMBOL '?'
-#define EITHER_OR_SYMBOL '|'
-#define SENTINEL_SYMBOL 0
+#define ZERO_OR_MORE_FLAG 1 // *
+#define ATLEAST_ONE_FLAG 2 // +
+#define ONE_OR_ZERO_FLAG 4 // ?
+#define EITHER_OR_FLAG 8 // |
+#define SENTINEL 0
 
 typedef BYTE primu8Symbol, *ptru8Symbol, arru8RegexExpr[MAX_REGEX_LEN], *ptru8RegexExpr;
 typedef UINT32 primu32BitMapFragment, *ptru32BitMapFragment;
@@ -83,18 +83,18 @@ typedef struct {
 
 INLINE_LOCAL primu32BitMapFragment fniInitPartialNFA(bfpPartialNFA bmap_fragment, ptru8RegexExpr pstr_exprpos) {
 	REENTRANT_NOCHANGE WORD arri32sOperatorsMap[UCHAR_MAX] = {
-		MK32X(SENTINEL_SYMBOL), 
-		MK8X(SENTINEL_SYMBOL), 
-		MK2X(SENTINEL_SYMBOL),
-		ZERO_OR_MORE_SYMBOL, 
-		ATLEAST_ONE_SYMBOL, 
-		MK16X(SENTINEL_SYMBOL),
-		MK2X(SENTINEL_SYMBOL), 
-		SENTINEL_SYMBOL, 
-		ONE_OR_ZERO_SYMBOL, 
-		MK60X(SENTINEL_SYMBOL),
-		EITHER_OR_SYMBOL, 
-		MK6X(SENTINEL_SYMBOL),
+		MK32X(SENTINEL), 
+		MK8X(SENTINEL), 
+		MK2X(SENTINEL),
+		ZERO_OR_MORE_FLAG, 
+		ATLEAST_ONE_FLAG, 
+		MK16X(SENTINEL),
+		MK2X(SENTINEL), 
+		SENTINEL, 
+		ONE_OR_ZERO_FLAG, 
+		MK60X(SENTINEL),
+		EITHER_OR_FLAG, 
+		MK6X(SENTINEL),
 	};
 	bmap_fragment->symbol_a = *pstr_exprpos;
 	bmap_fragment->symbol_b = *(pstr_exprpos + 2)
