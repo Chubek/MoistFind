@@ -1,15 +1,11 @@
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <string.h>
-#include <unistd.h>
-#include <limits.h>
-#include <immintrin.h>
-#include <sys/types.h>
 
 #ifdef NO_ASM_USAGE
 // taken from https://graphics.stanford.edu/~seander/bithacks.html#IntegerLogLookup
-static const char log2lut[256] = 
+static const char log2lut[UCHAR_MAX + 1] = 
 {
 #define LT(n) n, n, n, n, n, n, n, n, n, n, n, n, n, n, n, n
     -1, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3,
@@ -17,8 +13,23 @@ static const char log2lut[256] =
     LT(7), LT(7), LT(7), LT(7), LT(7), LT(7), LT(7), LT(7)
 };
 #define GET_LOG_TWO(DST, SRC) do { unsigned int v = SRC & 0xfe; unsigned r; register unsigned int t, tt; if (tt = v >> 16) {  r = (t = tt >> 8) ? 24 + log2lut[t] : 16 + log2lut[tt]; } else {  r = (t = v >> 8) ? 8 + log2lut[t] : log2lut[v]; }; DST = r; } while (0)
+#define ZERO_OUT_MEMORY(DST, LEN) memset(DST, 0, LEN)
 #else
-#define GET_LOG_TWO(DST, SRC) do { asm volatile ("tzcnt %1, %0" : "=r" (DST) : "r" (SRC & 0xfe)); } while (0)
+#ifdef __aarch64__
+#define ASM_COUNT_TZ "ctz %0, %1"
+#define ASM_MEM_ZERO "mov x9, %0; __zero: strb wzr, [%0], #1; subs %1, %1, #1; b.ne __zero;"
+#define ASM_ZERO_MEM_INPUT(PTR, LEN) "r" (PTR), "r" (LEN)
+#define CLOBBER_MEM_ZERO "x9", "x10", "memory"
+#elif __amd64__
+#define ASM_COUNT_TZ "tzcnt %1, %0"
+#define ASM_MEM_ZERO "movq %0, %%r11; xorq %%r12, %%r12; __zero: movb %%r12b, (%%r11); incq %%r11; decq %1; jnz __zero;"
+#define ASM_ZERO_MEM_INPUT(PTR, LEN) "g" (PTR), "r" (LEN)
+#define CLOBBER_MEM_ZERO "r11", "rbx", "memory"
+#else
+#error "Please pass -D NO_ASM_USAGE"
+#endif
+#define GET_LOG_TWO(DST, SRC) do { asm volatile (ASM_COUNT_TZ : "=r" (DST) : "r" (SRC & 0xfe)); } while (0)
+#define ZERO_OUT_MEMORY(DST, LEN) do { uintptr_t ptr = (uintptr_t)DST; size_t len = LEN; asm volatile (ASM_MEM_ZERO : : ASM_ZERO_MEM_INPUT(ptr, len) : CLOBBER_MEM_ZERO ); } while (0)
 #endif
 
 #define OR_SHR(VAL, SHRN) VAL |= VAL >> SHRN
@@ -28,25 +39,35 @@ static const char log2lut[256] =
 typedef char filename_t[NAME_MAX];
 typedef char pathname_t[PATH_MAX];
 typedef char *nameptr_t;
-typedef int flencls_t;
+typedef int fnmlncls_t;
 typedef int namelen_t;
 typedef int lenhint_t;
 
 typedef struct {
-	namelen_t length;
-	flencls_t lenclass;
-	filename_t fname;
-	lenhint_t extbegin;
+	unsigned int length : 9;
+	unsigned int extpos : 8;
+	unsigned int lclass : 4;
+	unsigned int 		: 11;
+} fnmattrs_t;
+
+typedef struct {
+	fnmattrs_t nmattrs;
+	filename_t nmrepr;
+	nameptr_t nmptr;
 } filenm_t;
 
 
-static inline void init_filenm(filenm_t *fname) {
-	fname->length = strlen(&fname->fname[0]);
-	GET_LOG_TWO(fname->lenclass, fname->length);
-	GET_FIRST_PERIOD(fname->extbegin, fname->fname, fname->length);
+/*
+static inline void init_filenm(filename_t repr, filenm_t *filenm) {
+	memset(filenm, 0, sizeof(filenm_t));
+	filenm->nmptr = &
+	filenm->length = strlen(&filenm->filenm[0]);
+	GET_LOG_TWO(filenm->lenclass, filenm->length);
+	GET_FIRST_PERIOD(filenm->extbegin, filenm->filenm, filenm->length);
 }
+*/
 
 int main(int argc, char **argv) {
-	filenm_t fname = (filenm_t) { .fname = ".abcd1aaa" };
-	init_filenm(&fname);
+	char b[] = "1131224";
+	ZERO_OUT_MEMORY(&b[0], 8);
 }
