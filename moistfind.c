@@ -13,6 +13,8 @@
 #define MK60X(M) MK32X(M), MK16X(M), MK8X(M), MK4X(M)
 
 #define DEFAULT_RETURN return TRUE
+#define RETURN_ERROR return FALSE
+#define RETURN_SUCCESS return TRUE
 
 #define INLINE_LOCAL static inline
 #define STORE_REENTRANT static
@@ -20,7 +22,7 @@
 #define EXTERNAL_LINKAGE extern
 #define EXTERNAL_INLINE extern inline
 #define NOARGS void
-
+#define NORETURN void
 
 REENTRANT_NOCHANGE BYTE log2lut[UCHAR_MAX + 1] = {
 	-1, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3,
@@ -48,6 +50,7 @@ typedef struct {
 	UINT16 length;
 	UINT8 extpos;
 	UINT8 lclass;
+	UINT8 currpos;
 } mstFileNameAttrs, *mspFileNameAttrs;
 
 typedef struct {
@@ -56,7 +59,7 @@ typedef struct {
 } mstFileNameDesc, *mspFileNameDesc;
 
 
-INLINE_LOCAL boolYield fniInitFileNameDesc(arru8FileName sstr_fnmrepr, mspFileNameDesc mem_fnmdesc) {
+INLINE_LOCAL boolYield fsiInitFileNameDesc(arru8FileName sstr_fnmrepr, mspFileNameDesc mem_fnmdesc) {
 	ZERO_OUT_MEMORY(mem_fnmdesc, sizeof(mstFileNameDesc));
 	mem_fnmdesc->nmptr = &sstr_fnmrepr[0];
 	mem_fnmdesc->nmattrs.length = strlen(&mem_fnmdesc->nmptr[0]);
@@ -65,42 +68,35 @@ INLINE_LOCAL boolYield fniInitFileNameDesc(arru8FileName sstr_fnmrepr, mspFileNa
 	DEFAULT_RETURN:
 }
 
-#define MAX_REGEX_LEN 64
-#define ZERO_OR_MORE_FLAG 1 // *
-#define ATLEAST_ONE_FLAG 2 // +
-#define ONE_OR_ZERO_FLAG 4 // ?
-#define EITHER_OR_FLAG 8 // |
-#define SENTINEL 0
+#define STACK_SIZE 2048
 
-typedef BYTE primu8Symbol, *ptru8Symbol, arru8RegexExpr[MAX_REGEX_LEN], *ptru8RegexExpr;
-typedef UINT32 primu32BitMapFragment, *ptru32BitMapFragment;
-
+typedef BYTE arru8PushdownStack[STACK_SIZE], *ptru8PushdownStack, primu8Symbol, *ptru8Symbol;
+typedef INT32 primi32StackTop, *ptru16StackTop;
 typedef struct {
-	primu32BitMapFragment symbol_b : 8;
-	primu32BitMapFragment symbol_a : 8;
-	primu32BitMapFragment operator : 16;
-} bftPartialNFA, *bfpPartialNFA;
+	arru8PushdownStack arena;
+	primi32StackTop top;
+} mstPushdownStack, *mspPushdownStack;
 
-INLINE_LOCAL primu32BitMapFragment fniInitPartialNFA(bfpPartialNFA bmap_fragment, ptru8RegexExpr pstr_exprpos) {
-	REENTRANT_NOCHANGE WORD arri32sOperatorsMap[UCHAR_MAX] = {
-		MK32X(SENTINEL), 
-		MK8X(SENTINEL), 
-		MK2X(SENTINEL),
-		ZERO_OR_MORE_FLAG, 
-		ATLEAST_ONE_FLAG, 
-		MK16X(SENTINEL),
-		MK2X(SENTINEL), 
-		SENTINEL, 
-		ONE_OR_ZERO_FLAG, 
-		MK60X(SENTINEL),
-		EITHER_OR_FLAG, 
-		MK6X(SENTINEL),
-	};
-	bmap_fragment->symbol_a = *pstr_exprpos;
-	bmap_fragment->symbol_b = *(pstr_exprpos + 2)
-	bmap_fragment->operator = arri32sOperatorsMap[*(pstr_exprpos + 1)];
-	ptru32BitMapFragment uptr_retval;
-	COPY_MEMORY(uptr_retval, bmap_fragment, sizeof(*uptr_retval));
-	return *uptr_retval;
+INLINE_LOCAL boolYield fsiInitArenaStack(mspPushdownStack mem_stack) {
+	return ZERO_OUT_MEMORY(mem_stack, sizeof(*mem_stack));
 }
 
+INLINE_LOCAL boolYield fsiPushToStack(mspPushdownStack mem_stack, primu8Symbol ub_symbol) {
+	if (mem_stack->top + 1 >= STACK_SIZE)
+		RETURN_ERROR;
+	else
+		mem_stack->arena[++mem_stack->top] = ub_symbol;
+	RETURN_SUCCESS;
+}
+
+INLINE_LOCAL boolYield fsiPopFromStack(mspPushdownStack mem_stack, ptru8Symbol ub_symbol) {
+	if (mem_stack->top < 0)
+		RETURN_ERROR;
+	else
+		*ub_symbol = mem_stack->arena[mem_stack->top--];
+	RETURN_SUCCESS;
+}
+
+INLINE_LOCAL primi32StackTop fsiGetStackTop(mspPushdownStack mem_stack) {
+	return mem_stack->top;
+}
